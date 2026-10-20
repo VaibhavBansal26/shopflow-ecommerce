@@ -1,8 +1,6 @@
 const router = require('express').Router();
 const { optionalAuth } = require('../middleware/auth');
 const { AppError } = require('../middleware/errorHandler');
-const httpx = require('httpx');
-
 const REC_ENGINE_URL = process.env.REC_ENGINE_URL || 'http://localhost:8001';
 const REC_ENGINE_TOKEN = process.env.INTERNAL_API_TOKEN || 'shopflow-internal-token';
 

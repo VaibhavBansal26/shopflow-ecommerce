@@ -4,7 +4,7 @@ const { pool } = require('../src/config/database');
 const migrations = `
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "postgis";
+CREATE EXTENSION IF NOT EXISTS "vector";
 
 -- Enums
 CREATE TYPE user_role AS ENUM ('customer', 'admin', 'rider', 'super_admin');
@@ -211,7 +211,8 @@ CREATE TABLE IF NOT EXISTS cart_items (
   variant_id UUID REFERENCES product_variants(id),
   quantity INTEGER NOT NULL DEFAULT 1,
   price DECIMAL(10,2) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(cart_id, product_id)
 );
 
 -- Orders

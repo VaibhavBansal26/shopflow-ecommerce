@@ -4,9 +4,9 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: shopflow
-      POSTGRES_USER: shopflow
-      POSTGRES_PASSWORD: shopflow_password
+      POSTGRES_DB: ${POSTGRES_DB:-shopflow}
+      POSTGRES_USER: ${POSTGRES_USER:-shopflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopflow_password}
     ports:
       - '5432:5432'
     volumes:
@@ -36,17 +36,33 @@ services:
     ports:
       - '3001:3001'
     environment:
-      DATABASE_URL: postgresql://shopflow:shopflow_password@postgres:5432/shopflow
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shopflow}:${POSTGRES_PASSWORD:-shopflow_password}@postgres:5432/${POSTGRES_DB:-shopflow}
       REDIS_URL: redis://redis:6379
-      NODE_ENV: development
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:-shopflow_jwt_secret_dev}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-shopflow_refresh_secret_dev}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-shopflow_internal_token_2024}
+      REC_ENGINE_URL: http://recommendation-engine:8001
+      INTERNAL_API_TOKEN: shopflow-internal-token
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-placeholder}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-placeholder}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:3001/api/auth/google/callback}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-placeholder}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-placeholder}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-+1234567890}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-placeholder}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    command: sh -c "node scripts/migrate.js && node src/index.js"
     volumes:
-      - ./backend:/app
-      - /app/node_modules
+      - ./backend/uploads:/app/uploads
 
   recommendation-engine:
     build:
@@ -55,8 +71,10 @@ services:
     ports:
       - '8001:8001'
     environment:
-      DATABASE_URL: postgresql://shopflow:shopflow_password@postgres:5432/shopflow
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shopflow}:${POSTGRES_PASSWORD:-shopflow_password}@postgres:5432/${POSTGRES_DB:-shopflow}
       REDIS_URL: redis://redis:6379
+      INTERNAL_TOKEN: shopflow-internal-token
+      INTERNAL_API_TOKEN: shopflow-internal-token
     depends_on:
       postgres:
         condition: service_healthy
