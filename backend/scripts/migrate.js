@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email VARCHAR(255) UNIQUE,
   phone VARCHAR(20) UNIQUE,
+  password_hash TEXT,
   name VARCHAR(255) NOT NULL,
   avatar_url TEXT,
   role user_role DEFAULT 'customer',
@@ -362,6 +363,9 @@ CREATE TABLE IF NOT EXISTS page_views (
   city VARCHAR(100),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- add missing columns to existing tables
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
 
 -- update_at triggers
 CREATE OR REPLACE FUNCTION update_updated_at()
