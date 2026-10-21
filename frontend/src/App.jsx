@@ -18,6 +18,7 @@ import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminDashboard from './pages/admin/Dashboard';
 import RiderDashboard from './pages/rider/Dashboard';
+import VendorDashboard from './pages/vendor/Dashboard';
 
 // Components
 import Layout from './components/layout/Layout';
@@ -61,6 +62,7 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/admin/*" element={<ProtectedRoute roles={['admin']}><AdminDashboard /></ProtectedRoute>} />
           <Route path="/rider/*" element={<ProtectedRoute roles={['rider']}><RiderDashboard /></ProtectedRoute>} />
+          <Route path="/vendor/*" element={<ProtectedRoute roles={['vendor']}><VendorDashboard /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

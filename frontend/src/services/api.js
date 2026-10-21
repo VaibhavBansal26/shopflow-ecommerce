@@ -24,13 +24,19 @@ api.interceptors.response.use(
             `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/auth/refresh`,
             { refreshToken }
           );
-          localStorage.setItem('token', data.accessToken);
-          original.headers.Authorization = `Bearer ${data.accessToken}`;
+          const newToken = data.tokens?.access || data.accessToken;
+          localStorage.setItem('token', newToken);
+          original.headers.Authorization = `Bearer ${newToken}`;
           return api(original);
-        } catch {
-          localStorage.removeItem('token');
-          localStorage.removeItem('refreshToken');
-          window.location.href = '/login';
+        } catch (refreshErr) {
+          // only force-logout when the refresh endpoint itself says the token is invalid
+          const status = refreshErr.response?.status;
+          if (status === 401 || status === 403) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            window.location.href = '/login';
+          }
+          // network error or server down: keep tokens, let the app handle it
         }
       }
     }

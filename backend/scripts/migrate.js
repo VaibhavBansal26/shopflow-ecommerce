@@ -6,8 +6,10 @@ const migrations = `
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "vector";
 
--- Enums
-CREATE TYPE user_role AS ENUM ('customer', 'admin', 'rider', 'super_admin');
+-- Enums (42710 = duplicate_object, silently ignored below)
+CREATE TYPE user_role AS ENUM ('customer', 'admin', 'rider', 'vendor', 'super_admin');
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'vendor';
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'super_admin';
 CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'preparing', 'picked_up', 'in_transit', 'delivered', 'cancelled', 'refunded');
 CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded');
 CREATE TYPE payment_method AS ENUM ('card', 'gpay', 'cash', 'wallet', 'subscription');
@@ -19,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email VARCHAR(255) UNIQUE,
   phone VARCHAR(20) UNIQUE,
+  password_hash TEXT,
   name VARCHAR(255) NOT NULL,
   avatar_url TEXT,
   role user_role DEFAULT 'customer',
@@ -363,29 +366,86 @@ CREATE TABLE IF NOT EXISTS page_views (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- add missing columns to existing tables
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES users(id);
+
 -- update_at triggers
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+DROP TRIGGER IF EXISTS update_products_updated_at ON products;
 CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+DROP TRIGGER IF EXISTS update_orders_updated_at ON orders;
 CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+DROP TRIGGER IF EXISTS update_carts_updated_at ON carts;
 CREATE TRIGGER update_carts_updated_at BEFORE UPDATE ON carts FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
 `;
+
+// Split on ';' but respect $$-quoted strings (used in function bodies)
+function splitStatements(sql) {
+  const results = [];
+  let buf = '';
+  let dollarTag = null;
+  let i = 0;
+  while (i < sql.length) {
+    if (dollarTag === null) {
+      // detect start of dollar-quote: $tag$ or $$
+      const m = sql.slice(i).match(/^\$[^$]*\$/);
+      if (m) {
+        dollarTag = m[0];
+        buf += dollarTag;
+        i += dollarTag.length;
+        continue;
+      }
+      if (sql[i] === ';') {
+        const stmt = buf.trim();
+        if (stmt && !stmt.startsWith('--')) results.push(stmt);
+        buf = '';
+        i++;
+        continue;
+      }
+    } else {
+      // inside dollar-quote: look for closing tag
+      const closeIdx = sql.indexOf(dollarTag, i);
+      if (closeIdx !== -1) {
+        buf += sql.slice(i, closeIdx + dollarTag.length);
+        i = closeIdx + dollarTag.length;
+        dollarTag = null;
+        continue;
+      } else {
+        buf += sql.slice(i);
+        break;
+      }
+    }
+    buf += sql[i++];
+  }
+  const last = buf.trim();
+  if (last && !last.startsWith('--')) results.push(last);
+  return results;
+}
+
+const statements = splitStatements(migrations);
 
 async function runMigrations() {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    await client.query(migrations);
-    await client.query('COMMIT');
+    for (const stmt of statements) {
+      try {
+        await client.query(stmt);
+      } catch (err) {
+        // Ignore "already exists" errors — everything else is fatal
+        if (!['42701', '42710', '42P07', '23505', '42P16'].includes(err.code)) {
+          console.error('Migration statement failed:', stmt.slice(0, 80), '\nError:', err.message);
+          throw err;
+        }
+      }
+    }
     console.log('Migrations completed successfully');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Migration failed:', err);
-    throw err;
   } finally {
     client.release();
     await pool.end();

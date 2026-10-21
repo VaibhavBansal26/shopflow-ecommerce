@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Package, Truck, CheckCircle, Clock, MapPin } from 'lucide-react';
 import { fetchOrder } from '../store/slices/orderSlice';
+import { imgSrc, onImgError } from '../utils/productImage';
 import { updateOrderStatus } from '../store/slices/orderSlice';
 import { connectSocket, trackOrder, onOrderUpdate, onRiderLocation } from '../services/socket';
 
@@ -126,7 +127,7 @@ const OrderTrackingPage = () => {
         <div className="space-y-3">
           {order.items?.map(item => (
             <div key={item.id} className="flex items-center gap-3">
-              <img src={item.default_image_url || '/placeholder-product.png'} alt={item.product_name}
+              <img src={imgSrc(item.default_image_url)} onError={onImgError} alt={item.product_name}
                 className="w-12 h-12 object-cover rounded-xl" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900">{item.product_name}</p>
