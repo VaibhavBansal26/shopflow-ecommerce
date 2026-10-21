@@ -6,15 +6,15 @@ const migrations = `
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "vector";
 
--- Enums
-DO $$ BEGIN CREATE TYPE user_role AS ENUM ('customer', 'admin', 'rider', 'vendor', 'super_admin'); EXCEPTION WHEN duplicate_object THEN null; END $$;
--- add vendor to existing enum if missing
-DO $$ BEGIN ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'vendor'; EXCEPTION WHEN others THEN null; END $$;
-DO $$ BEGIN CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'preparing', 'picked_up', 'in_transit', 'delivered', 'cancelled', 'refunded'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE TYPE payment_method AS ENUM ('card', 'gpay', 'cash', 'wallet', 'subscription'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE TYPE delivery_type AS ENUM ('standard', 'express', 'scheduled', 'team', 'rider'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE TYPE subscription_interval AS ENUM ('weekly', 'monthly', 'quarterly', 'yearly'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- Enums (42710 = duplicate_object, silently ignored below)
+CREATE TYPE user_role AS ENUM ('customer', 'admin', 'rider', 'vendor', 'super_admin');
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'vendor';
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'super_admin';
+CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'preparing', 'picked_up', 'in_transit', 'delivered', 'cancelled', 'refunded');
+CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded');
+CREATE TYPE payment_method AS ENUM ('card', 'gpay', 'cash', 'wallet', 'subscription');
+CREATE TYPE delivery_type AS ENUM ('standard', 'express', 'scheduled', 'team', 'rider');
+CREATE TYPE subscription_interval AS ENUM ('weekly', 'monthly', 'quarterly', 'yearly');
 
 -- Users
 CREATE TABLE IF NOT EXISTS users (
@@ -386,11 +386,50 @@ DROP TRIGGER IF EXISTS update_carts_updated_at ON carts;
 CREATE TRIGGER update_carts_updated_at BEFORE UPDATE ON carts FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
 `;
 
-// Split statements so each runs independently — prevents one failure rolling back everything
-const statements = migrations
-  .split(';')
-  .map(s => s.trim())
-  .filter(s => s.length > 0 && !s.startsWith('--'));
+// Split on ';' but respect $$-quoted strings (used in function bodies)
+function splitStatements(sql) {
+  const results = [];
+  let buf = '';
+  let dollarTag = null;
+  let i = 0;
+  while (i < sql.length) {
+    if (dollarTag === null) {
+      // detect start of dollar-quote: $tag$ or $$
+      const m = sql.slice(i).match(/^\$[^$]*\$/);
+      if (m) {
+        dollarTag = m[0];
+        buf += dollarTag;
+        i += dollarTag.length;
+        continue;
+      }
+      if (sql[i] === ';') {
+        const stmt = buf.trim();
+        if (stmt && !stmt.startsWith('--')) results.push(stmt);
+        buf = '';
+        i++;
+        continue;
+      }
+    } else {
+      // inside dollar-quote: look for closing tag
+      const closeIdx = sql.indexOf(dollarTag, i);
+      if (closeIdx !== -1) {
+        buf += sql.slice(i, closeIdx + dollarTag.length);
+        i = closeIdx + dollarTag.length;
+        dollarTag = null;
+        continue;
+      } else {
+        buf += sql.slice(i);
+        break;
+      }
+    }
+    buf += sql[i++];
+  }
+  const last = buf.trim();
+  if (last && !last.startsWith('--')) results.push(last);
+  return results;
+}
+
+const statements = splitStatements(migrations);
 
 async function runMigrations() {
   const client = await pool.connect();
