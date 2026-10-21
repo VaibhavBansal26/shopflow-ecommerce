@@ -65,6 +65,8 @@ services:
     command: sh -c "node scripts/migrate.js && node src/index.js"
     volumes:
       - ./backend/uploads:/app/uploads
+      - ./backend/src:/app/src
+      - ./backend/scripts:/app/scripts
 
   recommendation-engine:
     build:
