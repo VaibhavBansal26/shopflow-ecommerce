@@ -73,8 +73,10 @@ const authLimiter = rateLimit({
   message: { error: 'Too many auth attempts, please try again in 15 minutes.' },
 });
 
-app.use('/api/', limiter);
-app.use('/api/auth', authLimiter);
+if (process.env.NODE_ENV !== 'development') {
+  app.use('/api/', limiter);
+  app.use('/api/auth', authLimiter);
+}
 
 // Body parsing
 app.use(compression());
