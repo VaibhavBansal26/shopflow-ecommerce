@@ -24,8 +24,9 @@ api.interceptors.response.use(
             `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/auth/refresh`,
             { refreshToken }
           );
-          localStorage.setItem('token', data.accessToken);
-          original.headers.Authorization = `Bearer ${data.accessToken}`;
+          const newToken = data.tokens?.access || data.accessToken;
+          localStorage.setItem('token', newToken);
+          original.headers.Authorization = `Bearer ${newToken}`;
           return api(original);
         } catch {
           localStorage.removeItem('token');

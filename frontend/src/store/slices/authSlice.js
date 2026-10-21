@@ -4,8 +4,8 @@ import api from '../../services/api';
 export const login = createAsyncThunk('auth/login', async (credentials, { rejectWithValue }) => {
   try {
     const { data } = await api.post('/auth/login', credentials);
-    localStorage.setItem('token', data.accessToken);
-    localStorage.setItem('refreshToken', data.refreshToken);
+    localStorage.setItem('token', data.tokens?.access || data.accessToken);
+    localStorage.setItem('refreshToken', data.tokens?.refresh || data.refreshToken);
     return data.user;
   } catch (err) {
     return rejectWithValue(err.response?.data?.message || 'Login failed');
