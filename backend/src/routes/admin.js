@@ -109,7 +109,7 @@ router.get('/categories', adminOrVendor, async (req, res) => {
   res.json(rows);
 });
 
-router.post('/categories', adminOnly, async (req, res) => {
+router.post('/categories', adminOrVendor, async (req, res) => {
   const { name, slug, parent_id } = req.body;
   const { rows } = await query(
     'INSERT INTO categories (name, slug, parent_id) VALUES ($1, $2, $3) RETURNING *',
