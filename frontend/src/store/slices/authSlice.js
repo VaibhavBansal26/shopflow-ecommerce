@@ -13,11 +13,19 @@ export const login = createAsyncThunk('auth/login', async (credentials, { reject
 });
 
 export const fetchMe = createAsyncThunk('auth/fetchMe', async (_, { rejectWithValue }) => {
+  const token = localStorage.getItem('token');
+  if (!token) return rejectWithValue('no_token');
   try {
     const { data } = await api.get('/auth/me');
     return data;
   } catch (err) {
-    return rejectWithValue(err.response?.data?.message);
+    // only signal a real auth failure when the server explicitly rejects the token
+    const status = err.response?.status;
+    if (status === 401 || status === 403) {
+      return rejectWithValue('unauthorized');
+    }
+    // network error / server down — don't destroy the session
+    return rejectWithValue('network_error');
   }
 });
 
@@ -39,7 +47,15 @@ const authSlice = createSlice({
       .addCase(login.fulfilled, (state, action) => { state.loading = false; state.user = action.payload; state.initialized = true; })
       .addCase(login.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
       .addCase(fetchMe.fulfilled, (state, action) => { state.user = action.payload; state.initialized = true; })
-      .addCase(fetchMe.rejected, (state) => { state.user = null; state.initialized = true; })
+      .addCase(fetchMe.rejected, (state, action) => {
+        // network errors keep existing session; only a real 401 clears it
+        if (action.payload === 'network_error') {
+          state.initialized = true; // unblock the app but keep user as-is
+        } else {
+          state.user = null;
+          state.initialized = true;
+        }
+      })
       .addCase(logout.fulfilled, (state) => { state.user = null; });
   },
 });
