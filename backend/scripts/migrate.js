@@ -386,17 +386,27 @@ DROP TRIGGER IF EXISTS update_carts_updated_at ON carts;
 CREATE TRIGGER update_carts_updated_at BEFORE UPDATE ON carts FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
 `;
 
+// Split statements so each runs independently — prevents one failure rolling back everything
+const statements = migrations
+  .split(';')
+  .map(s => s.trim())
+  .filter(s => s.length > 0 && !s.startsWith('--'));
+
 async function runMigrations() {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    await client.query(migrations);
-    await client.query('COMMIT');
+    for (const stmt of statements) {
+      try {
+        await client.query(stmt);
+      } catch (err) {
+        // Ignore "already exists" errors — everything else is fatal
+        if (!['42701', '42710', '42P07', '23505', '42P16'].includes(err.code)) {
+          console.error('Migration statement failed:', stmt.slice(0, 80), '\nError:', err.message);
+          throw err;
+        }
+      }
+    }
     console.log('Migrations completed successfully');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Migration failed:', err);
-    throw err;
   } finally {
     client.release();
     await pool.end();
