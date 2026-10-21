@@ -2,9 +2,12 @@ const router = require('express').Router();
 const { query } = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
 
-router.use(authenticate, requireRole('admin'));
+const adminOnly = requireRole('admin');
+const adminOrVendor = requireRole('admin', 'vendor');
 
-router.get('/dashboard', async (req, res) => {
+router.use(authenticate);
+
+router.get('/dashboard', adminOnly, async (req, res) => {
   const [orders, revenue, users, products] = await Promise.all([
     query("SELECT COUNT(*) FROM orders WHERE created_at > NOW() - INTERVAL '30 days'"),
     query("SELECT COALESCE(SUM(total),0) AS revenue FROM orders WHERE status != 'cancelled' AND created_at > NOW() - INTERVAL '30 days'"),
@@ -20,7 +23,7 @@ router.get('/dashboard', async (req, res) => {
 });
 
 // Orders
-router.get('/orders', async (req, res) => {
+router.get('/orders', adminOnly, async (req, res) => {
   const { status, page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
   let sql = `SELECT o.*, u.name AS customer_name, u.email, u.phone
@@ -33,7 +36,7 @@ router.get('/orders', async (req, res) => {
   res.json(rows);
 });
 
-router.patch('/orders/:id/status', async (req, res) => {
+router.patch('/orders/:id/status', adminOnly, async (req, res) => {
   const { status, rider_id } = req.body;
   const updates = ['status = $1', 'updated_at = NOW()'];
   const params = [status, req.params.id];
@@ -44,7 +47,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 });
 
 // Users / Shoppers
-router.get('/users', async (req, res) => {
+router.get('/users', adminOnly, async (req, res) => {
   const { role } = req.query;
   let sql = "SELECT id, name, email, phone, role, region, is_active, created_at FROM users";
   const params = [];
@@ -54,19 +57,19 @@ router.get('/users', async (req, res) => {
   res.json(rows);
 });
 
-router.patch('/users/:id/role', async (req, res) => {
+router.patch('/users/:id/role', adminOnly, async (req, res) => {
   const { role } = req.body;
   await query('UPDATE users SET role = $1 WHERE id = $2', [role, req.params.id]);
   res.json({ success: true });
 });
 
-router.patch('/users/:id/status', async (req, res) => {
+router.patch('/users/:id/status', adminOnly, async (req, res) => {
   const { rows } = await query('UPDATE users SET is_active = NOT is_active WHERE id = $1 RETURNING is_active', [req.params.id]);
   res.json({ is_active: rows[0].is_active });
 });
 
 // Vendors
-router.get('/vendors', async (req, res) => {
+router.get('/vendors', adminOnly, async (req, res) => {
   const { rows } = await query(`
     SELECT u.id, u.name, u.email, u.phone, u.is_active, u.created_at,
            COUNT(p.id) AS product_count
@@ -77,13 +80,13 @@ router.get('/vendors', async (req, res) => {
   res.json(rows);
 });
 
-router.patch('/vendors/:id/status', async (req, res) => {
+router.patch('/vendors/:id/status', adminOnly, async (req, res) => {
   const { rows } = await query('UPDATE users SET is_active = NOT is_active WHERE id = $1 RETURNING is_active', [req.params.id]);
   res.json({ is_active: rows[0].is_active });
 });
 
 // Riders
-router.get('/riders', async (req, res) => {
+router.get('/riders', adminOnly, async (req, res) => {
   const { rows } = await query(`
     SELECT u.id, u.name, u.phone, u.is_active,
            COUNT(o.id) FILTER (WHERE o.status = 'out_for_delivery') AS active_deliveries,
@@ -95,18 +98,18 @@ router.get('/riders', async (req, res) => {
   res.json(rows);
 });
 
-router.patch('/riders/:id/status', async (req, res) => {
+router.patch('/riders/:id/status', adminOnly, async (req, res) => {
   const { rows } = await query('UPDATE users SET is_active = NOT is_active WHERE id = $1 RETURNING is_active', [req.params.id]);
   res.json({ is_active: rows[0].is_active });
 });
 
 // Categories
-router.get('/categories', async (req, res) => {
+router.get('/categories', adminOrVendor, async (req, res) => {
   const { rows } = await query('SELECT * FROM categories ORDER BY name');
   res.json(rows);
 });
 
-router.post('/categories', async (req, res) => {
+router.post('/categories', adminOnly, async (req, res) => {
   const { name, slug, parent_id } = req.body;
   const { rows } = await query(
     'INSERT INTO categories (name, slug, parent_id) VALUES ($1, $2, $3) RETURNING *',
@@ -115,8 +118,8 @@ router.post('/categories', async (req, res) => {
   res.status(201).json(rows[0]);
 });
 
-// Products
-router.get('/products', async (req, res) => {
+// Products (admin sees all; vendor sees/manages only their own)
+router.get('/products', adminOrVendor, async (req, res) => {
   const { vendor_id, page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
   let sql = `SELECT p.*, c.name AS category_name, u.name AS vendor_name
@@ -124,27 +127,38 @@ router.get('/products', async (req, res) => {
              LEFT JOIN categories c ON c.id = p.category_id
              LEFT JOIN users u ON u.id = p.vendor_id`;
   const params = [];
-  if (vendor_id) { sql += ' WHERE p.vendor_id = $1'; params.push(vendor_id); }
+  // vendors are scoped to their own products
+  const scopedVendorId = req.user.role === 'vendor' ? req.user.id : (vendor_id || null);
+  if (scopedVendorId) { sql += ' WHERE p.vendor_id = $1'; params.push(scopedVendorId); }
   sql += ` ORDER BY p.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
   params.push(limit, offset);
   const { rows } = await query(sql, params);
   res.json(rows);
 });
 
-router.post('/products', async (req, res) => {
-  const { name, description, price, compare_at_price, category_id, vendor_id, quantity, images, is_active } = req.body;
+router.post('/products', adminOrVendor, async (req, res) => {
+  const { name, description, price, compare_at_price, category_id, quantity, sku, default_image_url, images, is_active } = req.body;
+  // vendors always own their own products
+  const vendor_id = req.user.role === 'vendor' ? req.user.id : (req.body.vendor_id || null);
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now();
   const { rows } = await query(
-    `INSERT INTO products (name, slug, description, price, compare_at_price, category_id, vendor_id, quantity, images, is_active)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-    [name, slug, description || null, price, compare_at_price || null, category_id || null, vendor_id || null,
-     quantity || 0, JSON.stringify(images || []), is_active !== false]
+    `INSERT INTO products (name, slug, description, price, compare_at_price, category_id, vendor_id, quantity, sku, default_image_url, images, is_active)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+    [name, slug, description || null, price, compare_at_price || null, category_id || null, vendor_id,
+     quantity || 0, sku || null, default_image_url || null, JSON.stringify(images || []), is_active !== false]
   );
   res.status(201).json(rows[0]);
 });
 
-router.patch('/products/:id', async (req, res) => {
-  const fields = ['name','description','price','compare_at_price','category_id','vendor_id','quantity','images','is_active','is_featured'];
+router.patch('/products/:id', adminOrVendor, async (req, res) => {
+  // vendors can only edit their own products
+  if (req.user.role === 'vendor') {
+    const { rows: check } = await query('SELECT vendor_id FROM products WHERE id = $1', [req.params.id]);
+    if (!check.length || check[0].vendor_id !== req.user.id) {
+      return res.status(403).json({ error: 'You can only edit your own products' });
+    }
+  }
+  const fields = ['name','description','price','compare_at_price','category_id','quantity','sku','default_image_url','images','is_active','is_featured'];
   const updates = [];
   const params = [];
   fields.forEach(f => {
@@ -161,7 +175,13 @@ router.patch('/products/:id', async (req, res) => {
   res.json(rows[0]);
 });
 
-router.delete('/products/:id', async (req, res) => {
+router.delete('/products/:id', adminOrVendor, async (req, res) => {
+  if (req.user.role === 'vendor') {
+    const { rows: check } = await query('SELECT vendor_id FROM products WHERE id = $1', [req.params.id]);
+    if (!check.length || check[0].vendor_id !== req.user.id) {
+      return res.status(403).json({ error: 'You can only delete your own products' });
+    }
+  }
   await query('UPDATE products SET is_active = false WHERE id = $1', [req.params.id]);
   res.json({ success: true });
 });
