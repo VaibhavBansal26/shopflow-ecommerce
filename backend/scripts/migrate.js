@@ -7,7 +7,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "vector";
 
 -- Enums
-DO $$ BEGIN CREATE TYPE user_role AS ENUM ('customer', 'admin', 'rider', 'super_admin'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE TYPE user_role AS ENUM ('customer', 'admin', 'rider', 'vendor', 'super_admin'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- add vendor to existing enum if missing
+DO $$ BEGIN ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'vendor'; EXCEPTION WHEN others THEN null; END $$;
 DO $$ BEGIN CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'preparing', 'picked_up', 'in_transit', 'delivered', 'cancelled', 'refunded'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE payment_method AS ENUM ('card', 'gpay', 'cash', 'wallet', 'subscription'); EXCEPTION WHEN duplicate_object THEN null; END $$;
@@ -366,6 +368,7 @@ CREATE TABLE IF NOT EXISTS page_views (
 
 -- add missing columns to existing tables
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES users(id);
 
 -- update_at triggers
 CREATE OR REPLACE FUNCTION update_updated_at()
