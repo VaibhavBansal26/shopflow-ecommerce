@@ -37,6 +37,9 @@ const Navbar = () => {
             {user?.role === 'rider' && (
               <Link to="/rider" className="text-gray-600 hover:text-indigo-600 transition-colors">Deliveries</Link>
             )}
+            {user?.role === 'vendor' && (
+              <Link to="/vendor" className="text-gray-600 hover:text-indigo-600 transition-colors">My Store</Link>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
