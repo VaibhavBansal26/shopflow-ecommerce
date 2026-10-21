@@ -52,7 +52,7 @@ const ProductPage = () => {
         {/* Images */}
         <div>
           <div className="aspect-square rounded-2xl overflow-hidden bg-gray-100 mb-3">
-            <img src={images[activeImg]?.url || '/placeholder-product.png'} alt={product.name}
+            <img src={imgSrc(images[activeImg]?.url)} onError={onImgError} alt={product.name}
               className="w-full h-full object-cover" />
           </div>
           {images.length > 1 && (

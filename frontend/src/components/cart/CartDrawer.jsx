@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { X, ShoppingBag, Trash2, Plus, Minus } from 'lucide-react';
 import { toggleCart } from '../../store/slices/uiSlice';
+import { imgSrc, onImgError } from '../../utils/productImage';
 import { removeFromCart } from '../../store/slices/cartSlice';
 
 const CartDrawer = () => {
@@ -38,7 +39,7 @@ const CartDrawer = () => {
               {items.map(item => (
                 <div key={item.id} className="flex gap-3 bg-gray-50 rounded-xl p-3">
                   <img
-                    src={item.default_image_url || '/placeholder-product.png'}
+                    src={imgSrc(item.default_image_url)} onError={onImgError}
                     alt={item.name}
                     className="w-16 h-16 object-cover rounded-lg"
                   />

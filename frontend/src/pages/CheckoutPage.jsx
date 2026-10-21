@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { imgSrc, onImgError } from '../utils/productImage';
 import { placeOrder } from '../store/slices/orderSlice';
 import { clearCart } from '../store/slices/cartSlice';
 import { showToast } from '../store/slices/uiSlice';
@@ -132,7 +133,7 @@ const CheckoutPage = () => {
             <div className="space-y-3 mb-4">
               {items.map(item => (
                 <div key={item.id} className="flex items-center gap-3">
-                  <img src={item.default_image_url || '/placeholder-product.png'} alt={item.name}
+                  <img src={imgSrc(item.default_image_url)} onError={onImgError} alt={item.name}
                     className="w-10 h-10 object-cover rounded-lg" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-800 truncate">{item.name}</p>

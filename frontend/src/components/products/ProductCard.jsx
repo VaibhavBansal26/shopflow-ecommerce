@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import { ShoppingCart, Star } from 'lucide-react';
 import { addToCart } from '../../store/slices/cartSlice';
 import { showToast } from '../../store/slices/uiSlice';
+import { imgSrc, onImgError } from '../../utils/productImage';
 
 const ProductCard = ({ product }) => {
   const dispatch = useDispatch();
@@ -27,8 +28,9 @@ const ProductCard = ({ product }) => {
       <div className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border border-gray-100">
         <div className="relative overflow-hidden aspect-square bg-gray-50">
           <img
-            src={product.default_image_url || '/placeholder-product.png'}
+            src={imgSrc(product.default_image_url)}
             alt={product.name}
+            onError={onImgError}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
           {discount && (

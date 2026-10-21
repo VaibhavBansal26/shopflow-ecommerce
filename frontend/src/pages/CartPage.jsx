@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { imgSrc, onImgError } from '../utils/productImage';
 import { useDispatch, useSelector } from 'react-redux';
 import { Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import { removeFromCart } from '../store/slices/cartSlice';
@@ -24,7 +25,7 @@ const CartPage = () => {
           <div className="md:col-span-2 space-y-3">
             {items.map(item => (
               <div key={item.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex gap-4">
-                <img src={item.default_image_url || '/placeholder-product.png'} alt={item.name}
+                <img src={imgSrc(item.default_image_url)} onError={onImgError} alt={item.name}
                   className="w-20 h-20 object-cover rounded-xl flex-shrink-0" />
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">{item.name}</p>
