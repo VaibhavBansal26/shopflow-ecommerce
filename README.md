@@ -8,7 +8,7 @@ A full-stack, production-ready ecommerce platform handling **5,000 orders/day** 
 shopflow-ecommerce/
 ├── backend/          # Node.js + Express API, WebSocket, Bull queues
 ├── frontend/         # React + Tailwind CSS (Shopper, Admin, Rider, AI Chat panels)
-├── mobile/           # React Native (Android + iOS)
+├── mobile/           # Legacy React Native scaffold — superseded by the shopflow-ecommerce-mobile repo
 ├── recommendation-engine/  # Python FastAPI — collaborative filtering + regional popularity
 └── shared/           # Shared TypeScript types and constants
 ```
@@ -22,7 +22,7 @@ shopflow-ecommerce/
 - **Auth**: Google OAuth 2.0 + OTP (Twilio)
 - **Subscriptions**: Monthly/weekly auto-delivery with discounts
 - **Scheduled Delivery**: Pick date & time at checkout
-- **Mobile**: React Native (Android + iOS)
+- **Mobile**: React Native (Android + iOS) — full Expo app lives in [shopflow-ecommerce-mobile](https://github.com/VaibhavBansal26/shopflow-ecommerce-mobile)
 - **Security**: Helmet, rate limiting, PCI-DSS tokenization, OTP, CORS, HPP
 
 ## Tech Stack
@@ -33,7 +33,7 @@ shopflow-ecommerce/
 | Backend | Node.js, Express, Socket.io, Bull, Passport |
 | Database | PostgreSQL + Redis |
 | AI/ML | Python FastAPI, scikit-learn, OpenAI GPT-4 |
-| Mobile | React Native 0.74, Expo, React Navigation |
+| Mobile | React Native 0.76, Expo SDK 52, React Navigation 7, Redux Toolkit ([separate repo](https://github.com/VaibhavBansal26/shopflow-ecommerce-mobile)) |
 | Payments | Stripe (card), Google Pay, Cash |
 | Auth | Google OAuth 2.0, JWT, OTP via Twilio |
 | Infra | Docker, Redis pub/sub, AWS S3 |
@@ -50,8 +50,9 @@ cd frontend && npm install && npm run dev
 # Recommendation Engine
 cd recommendation-engine && pip install -r requirements.txt && uvicorn src.main:app --reload
 
-# Mobile
-cd mobile && npm install && npx expo start
+# Mobile (separate repository)
+git clone https://github.com/VaibhavBansal26/shopflow-ecommerce-mobile
+cd shopflow-ecommerce-mobile && npm install && cp .env.example .env && npx expo start
 ```
 
 ## Scale Design
